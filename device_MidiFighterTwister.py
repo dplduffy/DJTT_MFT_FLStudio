@@ -10,9 +10,10 @@ import arrangement
 import general
 import launchMapPages
 import playlist
+import math
 
-#import midi
-#import utils
+import midi
+import utils
 
 class TMidiFighterTwister():
 	def OnInit(self):
@@ -24,9 +25,11 @@ class TMidiFighterTwister():
 
 		self.Reset()
 
-	def UpdateKnobs(self, Index):
+	def UpdateKnobs(self, Index, Value):
 
 		print("Update Knobs")
+		print("Knob Output: i=", Index, ", val=", Value)
+		#device.midiOutMsg()
 
 	def UpdateLEDs(self, Index):
 
@@ -35,8 +38,15 @@ class TMidiFighterTwister():
 	def OnMidiIn(self, event):
 
 		print("On Midi In")
+		print("Midi CC: ", event.controlNum)
+		print("Midi CC Value: ", event.controlVal)
 
-		event.handled = False
+		if event.controlNum == 15:
+			i = mixer.trackNumber()
+			scaledValue = self.scaleValue(event.controlVal, 127, 1)
+			mixer.setTrackVolume(i, scaledValue)
+			print("Scaled Volume Out ", scaledValue)
+		#event.handled = true
 
 	def Reset(self):
 
@@ -55,18 +65,30 @@ class TMidiFighterTwister():
 		event.handled = False
 
 	def OnRefresh(self, flags):
+		if device.isAssigned():
+			print("On Refresh")
+			print("Flags: ", flags)
 
-		print("On Refresh")
+			if flags == 4:
+				i = mixer.trackNumber()
+				volume = mixer.getTrackVolume(i)
+				scaledValue = self.scaleValue(volume, 1, 127)
+				self.UpdateKnobs(15, scaledValue)
+			else:
+				print("false")
 
-		#print(flags)
-
-	def OnDoFullRefresh(self, flags):
+	def OnDoFullRefresh(self):
 
 		print("On Do Full Refresh")
 
-	def OnDirtyMixerTrack(self, flags):
+	def scaleValue(self, value, scaleIn, scaleOut):
+		print("scaleValue")
+		return ((value/scaleIn) * scaleOut)
 
-		print("On Dirty Mixer Track")
+	#def OnDirtyMixerTrack(self, Flags):
+
+	#	print("On Dirty Mixer Track")
+	#	print(Flags)
 
 MidiFighterTwister = TMidiFighterTwister()
 
@@ -88,8 +110,8 @@ def OnMidiOutMsg(event):
 def OnRefresh(Flags):
 	MidiFighterTwister.OnRefresh(Flags)
 
-def OnDoFullRefresh(Flags):
-	MidiFighterTwister.OnRefresh(Flags)
+def OnDoFullRefresh():
+	MidiFighterTwister.OnDoFullRefresh()
 
-def OnDirtyMixerTrack(Flags):
-	MidiFighterTwister.OnDirtyMixerTrack(Flags)
+#def OnDirtyMixerTrack(Flags):
+#	MidiFighterTwister.OnDirtyMixerTrack(Flags)
