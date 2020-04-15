@@ -11,19 +11,17 @@ import general
 import launchMapPages
 import playlist
 import math
-
-#import midi
-#import utils
+import midi
+import utils
 
 class TMidiFighterTwister:
 
 	def OnInit(self):
 		print("On Init")
-		self.knobs = self.Knobs()
-		self.buttons = self.Buttons()
-		self.colors = self.Colors()
-		self.animation = self.Animation()
-		self.MidiMsgTypeCC = 11
+		self.KNOB = self.KNOB()
+		self.BTN = self.BTN()
+		self.COLOR = self.COLOR()
+		self.ANI = self.ANI()
 		self.OnRefresh(0)
 
 	def OnDeInit(self):
@@ -31,43 +29,63 @@ class TMidiFighterTwister:
 
 	def UpdateKnobs(self, Index, Value):
 
-		print("Update Knobs")
-		if (64 < Value < 65): Value = 65
-		if (64 > Value > 63): Value = 63
+		print("Update KNOB")
+		if (self.KNOB.PAN == Index):
+			if (64 < Value < 65): Value = 65
+			if (64 > Value > 63): Value = 63
 		Value = int(Value)
 		print("Knob Output: i=", Index, ", val=", Value)
-		device.midiOutMsg(0 + (self.MidiMsgTypeCC << 4) + (Index << 8) + (Value << 16))
+		device.midiOutMsg(0 + midi.MIDI_CONTROLCHANGE + (Index << 8) + (Value << 16))
 
-	def UpdateLEDs(self, Index, Color, Animation):
+	def UpdateLEDs(self, Index, Color, ANI):
 
 		print("Update LEDs")
-		print("LED Output: i=", Index," color=", Color," animation=", Animation)
-		device.midiOutMsg(1 + (self.MidiMsgTypeCC << 4) + (Index << 8) + (Color << 16))
-		device.midiOutMsg(5 + (self.MidiMsgTypeCC << 4) + (Index << 8) + (Animation << 16))
+		print("LED Output: i=", Index," color=", Color," ANI=", ANI)
+		device.midiOutMsg(1 + (midi.MIDI_CONTROLCHANGE) + (Index << 8) + (Color << 16))
+		device.midiOutMsg(5 + (midi.MIDI_CONTROLCHANGE) + (Index << 8) + (ANI << 16))
 
 	def OnMidiIn(self, event):
 
 		print("On Midi In")
-		print("Midi CC: ", event.controlNum)
-		print("Midi CC Value: ", event.controlVal)
+		print("CC: ", event.controlNum, " Value: ", event.controlVal, " Status: ", event.status)
+		print(self.CHN.KNOB + midi.MIDI_CONTROLCHANGE)
 
-		if event.controlNum == self.knobs.volume:
-			scaledVolume = self.scaleValue(event.controlVal, 127, 1)
-			mixer.setTrackVolume(mixer.trackNumber(), scaledVolume)
+		i = mixer.trackNumber()
 
-		if event.controlNum == self.knobs.pan:
-			scaledPan = (self.scaleValue(event.controlVal, 127, 2) - 1)
-			if (abs(scaledPan) < 0.008): scaledPan = 0
-			mixer.setTrackPan(mixer.trackNumber(), scaledPan)
+		if (event.status == (self.CHN.KNOB + midi.MIDI_CONTROLCHANGE)):
 
-		if (event.controlNum == self.buttons.play) & (event.controlVal == 127):
-			transport.start()
+			if event.controlNum == self.KNOB.VOL:
+				sVol = self.scaleValue(event.controlVal, 127, 1)
+				mixer.setTrackVolume(mixer.trackNumber(), sVol)
 
-		if (event.controlNum == self.buttons.stop) & (event.controlVal == 127):
-			transport.stop()
+			if event.controlNum == self.KNOB.PAN:
+				sPan = (self.scaleValue(event.controlVal, 127, 2) - 1)
+				if (abs(sPan) < 0.008):
+					sPan = 0
+				mixer.setTrackPan(mixer.trackNumber(), sPan)
 
-		if (event.controlNum == self.buttons.record) & (event.controlVal == 127):
-			transport.record()
+		if (event.status == (self.CHN.BTN + midi.MIDI_CONTROLCHANGE)):
+
+			if (event.controlNum == self.BTN.PLAY) & (event.controlVal == 127):
+				transport.start()
+
+			if (event.controlNum == self.BTN.STOP) & (event.controlVal == 127):
+				transport.stop()
+
+			if (event.controlNum == self.BTN.RECORD) & (event.controlVal == 127):
+				transport.record()
+
+			if (event.controlNum == self.BTN.LOOP_MODE) & (event.controlVal == 127):
+				transport.setLoopMode()
+
+			if (event.controlNum == self.BTN.MUTE) & (event.controlVal == 127):
+				mixer.enableTrack(i)
+
+			if (event.controlNum == self.BTN.SOLO) & (event.controlVal == 127):
+				mixer.soloTrack(i)
+
+			if (event.controlNum == self.BTN.TRACK_ARM) & (event.controlVal == 127):
+				mixer.armTrack(i)
 
 		#event.handled = true
 
@@ -90,32 +108,47 @@ class TMidiFighterTwister:
 
 			i = mixer.trackNumber()
 
-			volume = mixer.getTrackVolume(i)
-			scaledVolume = self.scaleValue(volume, 1, 127)
-			self.UpdateKnobs(self.knobs.volume, scaledVolume)
+			Volume = mixer.getTrackVolume(i)
+			sVol = self.scaleValue(Volume, 1, 127)
+			self.UpdateKnobs(self.KNOB.VOL, sVol)
+			self.UpdateLEDs(self.KNOB.VOL, self.COLOR.BRIGHT_GREEN, self.ANI.SOLID)
 
-			pan = 1 + (mixer.getTrackPan(i))
-			scaledPan = self.scaleValue(pan, 2, 127)
-			self.UpdateKnobs(self.knobs.pan, scaledPan)
+			Pan = 1 + (mixer.getTrackPan(i))
+			sPan = self.scaleValue(Pan, 2, 127)
+			self.UpdateKnobs(self.KNOB.PAN, sPan)
+
+			print("pan :",Pan)
+			if mixer.isTrackSolo(i):
+				self.UpdateLEDs(self.KNOB.PAN, self.COLOR.GREEN_YELLOW, self.ANI.PULSE)
+			else:
+				if (Pan < 1):
+					self.UpdateLEDs(self.KNOB.PAN, self.COLOR.YELLOW, self.ANI.SOLID)
+				elif (Pan > 1):
+					self.UpdateLEDs(self.KNOB.PAN, self.COLOR.RED, self.ANI.SOLID)
+				else:
+					self.UpdateLEDs(self.KNOB.PAN, self.COLOR.BRIGHT_GREEN, self.ANI.SOLID)
+
+			if mixer.isTrackArmed(i):
+				self.UpdateLEDs(self.KNOB.VOL, self.COLOR.RED, self.ANI.PULSE)
 
 			color = mixer.getTrackColor(i)
 
 			if transport.isPlaying():
-				self.UpdateLEDs(self.buttons.play, self.colors.green, self.animation.solid)
-				self.UpdateLEDs(self.buttons.stop, self.colors.green, self.animation.solid)
+				self.UpdateLEDs(self.BTN.PLAY, self.COLOR.GREEN, self.ANI.PULSE)
+				self.UpdateLEDs(self.BTN.STOP, self.COLOR.GREEN, self.ANI.SOLID)
 			else:
-				self.UpdateLEDs(self.buttons.play, self.colors.darkBlue, self.animation.solid)
-				self.UpdateLEDs(self.buttons.stop, self.colors.darkBlue, self.animation.solid)
+				self.UpdateLEDs(self.BTN.PLAY, self.COLOR.DARK_BLUE, self.ANI.SOLID)
+				self.UpdateLEDs(self.BTN.STOP, self.COLOR.DARK_BLUE, self.ANI.SOLID)
 
 			if transport.isRecording():
-				self.UpdateLEDs(self.buttons.record, self.colors.red, self.animation.solid)
+				self.UpdateLEDs(self.BTN.RECORD, self.COLOR.ORANGE, self.ANI.PULSE)
 			else:
-				self.UpdateLEDs(self.buttons.record, self.colors.yellow, self.animation.solid)
+				self.UpdateLEDs(self.BTN.RECORD, self.COLOR.YELLOW, self.ANI.SOLID)
 
 			if transport.getLoopMode():
-				self.UpdateLEDs(self.buttons.loopMode, self.colors.greenYellow, self.animation.solid)
+				self.UpdateLEDs(self.BTN.LOOP_MODE, self.COLOR.BRIGHT_GREEN, self.ANI.SOLID)
 			else:
-				self.UpdateLEDs(self.buttons.loopMode, self.colors.lightOrange, self.animation.solid)
+				self.UpdateLEDs(self.BTN.LOOP_MODE, self.COLOR.LIGHT_ORANGE, self.ANI.SOLID)
 
 
 	def OnDoFullRefresh(self):
@@ -126,32 +159,41 @@ class TMidiFighterTwister:
 		print("scaleValue")
 		return ((value/scaleIn) * scaleOut)
 
-	class Knobs:
-		 volume = 15
-		 pan = 11
+	class KNOB:
+		 PAN = 11
+		 VOL = 15
 
-	class Colors:
-		darkBlue = 1
-		lightBlue = 20
-		cyan = 30
-		green = 50
-		greenYellow = 60
-		yellow = 65
-		lightOrange = 68
-		orange = 72
-		red = 80
-		pink = 110
-		purple = 127
+	class COLOR:
+		DARK_BLUE = 1
+		LIGHT_BLUE = 20
+		CYAN = 30
+		GREEN = 50
+		BRIGHT_GREEN = 56
+		GREEN_YELLOW = 59
+		YELLOW = 65
+		LIGHT_ORANGE = 68
+		ORANGE = 72
+		RED = 80
+		PINK = 110
+		PURPLE = 127
 
-	class Buttons:
-		loopMode = 8
-		play = 12
-		stop = 13
-		record = 14
+	class BTN:
+		LOOP_MODE = 8
+		MUTE = 9
+		ALT_SOLO = 10
+		SOLO = 11
+		PLAY = 12
+		STOP = 13
+		RECORD = 14
+		TRACK_ARM = 15
 
-	class Animation:
-		solid = 0
-		pulse = 14
+	class ANI:
+		SOLID = 0
+		PULSE = 12
+
+	class CHN:
+		KNOB = 0
+		BTN = 1
 
 
 MidiFighterTwister = TMidiFighterTwister()
