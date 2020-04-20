@@ -29,30 +29,33 @@ class TMidiFighterTwister:
 
 	def UpdateKnobs(self, Index, Value):
 
-		print("Update KNOB")
+		#print("Update KNOB")
 		if (self.KNOB.PAN == Index):
 			if (64 < Value < 65): Value = 65
 			if (64 > Value > 63): Value = 63
 		Value = int(Value)
-		print("Knob Output: i=", Index, ", val=", Value)
+		#print("Knob Output: i=", Index, ", val=", Value)
 		device.midiOutMsg(0 + midi.MIDI_CONTROLCHANGE + (Index << 8) + (Value << 16))
 
 	def UpdateLEDs(self, Index, Color, ANI):
 
-		print("Update LEDs")
-		print("LED Output: i=", Index," color=", Color," ANI=", ANI)
+		#print("Update LEDs")
+		#print("LED Output: i=", Index," color=", Color," ANI=", ANI)
 		device.midiOutMsg(1 + (midi.MIDI_CONTROLCHANGE) + (Index << 8) + (Color << 16))
 		device.midiOutMsg(5 + (midi.MIDI_CONTROLCHANGE) + (Index << 8) + (ANI << 16))
 
 	def OnMidiIn(self, event):
 
 		print("On Midi In")
-		print("CC: ", event.controlNum, " Value: ", event.controlVal, " Status: ", event.status)
-		print(self.CHN.KNOB + midi.MIDI_CONTROLCHANGE)
+
+	def OnMidiMsg(self, event):
+
+		#print("On Midi Msg")
+		#print("CC: ", event.controlNum, " Value: ", event.controlVal, " Chan: ", event.midiChan)
 
 		i = mixer.trackNumber()
 
-		if (event.status == (self.CHN.KNOB + midi.MIDI_CONTROLCHANGE)):
+		if (event.midiChan == self.CHN.KNOB):
 
 			if event.controlNum == self.KNOB.VOL:
 				sVol = self.scaleValue(event.controlVal, 127, 1)
@@ -64,7 +67,9 @@ class TMidiFighterTwister:
 					sPan = 0
 				mixer.setTrackPan(mixer.trackNumber(), sPan)
 
-		if (event.status == (self.CHN.BTN + midi.MIDI_CONTROLCHANGE)):
+			event.handled = True
+
+		elif (event.midiChan == self.CHN.BTN):
 
 			if (event.controlNum == self.BTN.PLAY) & (event.controlVal == 127):
 				transport.start()
@@ -87,13 +92,11 @@ class TMidiFighterTwister:
 			if (event.controlNum == self.BTN.TRACK_ARM) & (event.controlVal == 127):
 				mixer.armTrack(i)
 
-		#event.handled = true
+				event.handled = True
 
-	def OnMidiMsg(self, event):
+		else:
 
-		print("On Midi Msg")
-
-		event.handled = False
+			event.handled = False
 
 	def OnMidiOutMsg(self, event):
 
@@ -117,9 +120,8 @@ class TMidiFighterTwister:
 			sPan = self.scaleValue(Pan, 2, 127)
 			self.UpdateKnobs(self.KNOB.PAN, sPan)
 
-			print("pan :",Pan)
 			if mixer.isTrackSolo(i):
-				self.UpdateLEDs(self.KNOB.PAN, self.COLOR.GREEN_YELLOW, self.ANI.PULSE)
+				self.UpdateLEDs(self.BTN.SOLO, self.COLOR.GREEN_YELLOW, self.ANI.PULSE)
 			else:
 				if (Pan < 1):
 					self.UpdateLEDs(self.KNOB.PAN, self.COLOR.YELLOW, self.ANI.SOLID)
@@ -127,6 +129,11 @@ class TMidiFighterTwister:
 					self.UpdateLEDs(self.KNOB.PAN, self.COLOR.RED, self.ANI.SOLID)
 				else:
 					self.UpdateLEDs(self.KNOB.PAN, self.COLOR.BRIGHT_GREEN, self.ANI.SOLID)
+
+			if mixer.isTrackEnabled(i):
+				self.UpdateLEDs(self.BTN.MUTE, self.COLOR.BRIGHT_GREEN, self.ANI.SOLID)
+			else:
+				self.UpdateLEDs(self.BTN.MUTE, self.COLOR.GREEN_YELLOW, self.ANI.PULSE)
 
 			if mixer.isTrackArmed(i):
 				self.UpdateLEDs(self.KNOB.VOL, self.COLOR.RED, self.ANI.PULSE)
@@ -141,7 +148,7 @@ class TMidiFighterTwister:
 				self.UpdateLEDs(self.BTN.STOP, self.COLOR.DARK_BLUE, self.ANI.SOLID)
 
 			if transport.isRecording():
-				self.UpdateLEDs(self.BTN.RECORD, self.COLOR.ORANGE, self.ANI.PULSE)
+				self.UpdateLEDs(self.BTN.RECORD, self.COLOR.RED, self.ANI.PULSE)
 			else:
 				self.UpdateLEDs(self.BTN.RECORD, self.COLOR.YELLOW, self.ANI.SOLID)
 
@@ -153,10 +160,13 @@ class TMidiFighterTwister:
 
 	def OnDoFullRefresh(self):
 
-		print("On Do Full Refresh")
+		print("On Do Full Refresh: ")
+
+	def OnUpdateBeatIndicator(self, value):
+
+		print("On Update Beat Indicator")
 
 	def scaleValue(self, value, scaleIn, scaleOut):
-		print("scaleValue")
 		return ((value/scaleIn) * scaleOut)
 
 	class KNOB:
@@ -179,8 +189,7 @@ class TMidiFighterTwister:
 
 	class BTN:
 		LOOP_MODE = 8
-		MUTE = 9
-		ALT_SOLO = 10
+		MUTE = 10
 		SOLO = 11
 		PLAY = 12
 		STOP = 13
@@ -218,3 +227,6 @@ def OnRefresh(Flags):
 
 def OnDoFullRefresh():
 	MidiFighterTwister.OnDoFullRefresh()
+
+def OnUpdateBeatIndicator(value):
+	MidiFighterTwister.OnUpdateBeatIndicator(value)
