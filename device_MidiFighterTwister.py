@@ -1,7 +1,6 @@
 # name=DJTT Midi Fighter Twister
 # url=
 
-import fl
 import patterns
 import mixer
 import device
@@ -50,53 +49,68 @@ class TMidiFighterTwister:
 
 	def OnMidiMsg(self, event):
 
-		#print("On Midi Msg")
+		print("On Midi Msg")
 		#print("CC: ", event.controlNum, " Value: ", event.controlVal, " Chan: ", event.midiChan)
 
 		i = mixer.trackNumber()
 
 		if (event.midiChan == self.CHN.KNOB):
 
+			event.handled = False
+
 			if event.controlNum == self.KNOB.VOL:
 				sVol = self.scaleValue(event.controlVal, 127, 1)
 				mixer.setTrackVolume(mixer.trackNumber(), sVol)
+				event.handled = True
 
 			if event.controlNum == self.KNOB.PAN:
 				sPan = (self.scaleValue(event.controlVal, 127, 2) - 1)
 				if (abs(sPan) < 0.008):
 					sPan = 0
 				mixer.setTrackPan(mixer.trackNumber(), sPan)
-
-			event.handled = True
+				event.handled = True
 
 		elif (event.midiChan == self.CHN.BTN):
 
+			event.handled = False
+
 			if (event.controlNum == self.BTN.PLAY) & (event.controlVal == 127):
 				transport.start()
+				event.handled = True
 
 			if (event.controlNum == self.BTN.STOP) & (event.controlVal == 127):
 				transport.stop()
+				event.handled = True
 
 			if (event.controlNum == self.BTN.RECORD) & (event.controlVal == 127):
 				transport.record()
+				event.handled = True
 
 			if (event.controlNum == self.BTN.LOOP_MODE) & (event.controlVal == 127):
 				transport.setLoopMode()
+				event.handled = True
 
 			if (event.controlNum == self.BTN.MUTE) & (event.controlVal == 127):
 				mixer.enableTrack(i)
+				event.handled = True
 
 			if (event.controlNum == self.BTN.SOLO) & (event.controlVal == 127):
 				mixer.soloTrack(i)
+				event.handled = True
 
 			if (event.controlNum == self.BTN.TRACK_ARM) & (event.controlVal == 127):
 				mixer.armTrack(i)
-
 				event.handled = True
 
 		else:
 
 			event.handled = False
+
+	def OnControlChange(self, event):
+
+		print("On Control Change")
+
+		event.handled = False
 
 	def OnMidiOutMsg(self, event):
 
@@ -166,8 +180,19 @@ class TMidiFighterTwister:
 
 		print("On Update Beat Indicator")
 
+	def OnIdle(self):
+
+		self.dirtyRefreshMacros()
+
 	def scaleValue(self, value, scaleIn, scaleOut):
 		return ((value/scaleIn) * scaleOut)
+
+	def dirtyRefreshMacros(self):
+		for controlId in range(8):
+			eventID = device.findEventID(midi.EncodeRemoteControlID(device.getPortNumber(), 0, 0) + controlId, 1)
+			sVal = self.scaleValue(device.getLinkedValue(eventID), 1, 127)
+			#print("CID: ", controlId, "val: ", sVal)
+			self.UpdateKnobs(controlId, sVal)
 
 	class KNOB:
 		 PAN = 11
@@ -219,14 +244,20 @@ def OnMidiIn(event):
 def OnMidiMsg(event):
 	MidiFighterTwister.OnMidiMsg(event)
 
+def OnControlChange(event):
+	MidiFighterTwister.OnControlChange(event)
+
+def OnIdle():
+	MidiFighterTwister.OnIdle()
+
 def OnMidiOutMsg(event):
 	MidiFighterTwister.OnMidiOutMsg(event)
 
 def OnRefresh(Flags):
 	MidiFighterTwister.OnRefresh(Flags)
 
-def OnDoFullRefresh():
-	MidiFighterTwister.OnDoFullRefresh()
+def OnDoFullRefresh(Flags):
+	MidiFighterTwister.OnDoFullRefresh(Flags)
 
 def OnUpdateBeatIndicator(value):
 	MidiFighterTwister.OnUpdateBeatIndicator(value)
