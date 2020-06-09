@@ -171,6 +171,11 @@ class TMidiFighterTwister:
 			else:
 				self.UpdateLEDs(self.BTN.LOOP_MODE, self.COLOR.LIGHT_ORANGE, self.ANI.SOLID)
 
+			for controlId in range(8):
+				eventID = device.findEventID(midi.EncodeRemoteControlID(device.getPortNumber(), 0, 0) + controlId, 1)
+				sVal = self.scaleValue(device.getLinkedValue(eventID), 1, 127)
+				#print("CID: ", controlId, "val: ", sVal)
+				self.UpdateKnobs(controlId, sVal)
 
 	def OnDoFullRefresh(self):
 
@@ -180,19 +185,16 @@ class TMidiFighterTwister:
 
 		print("On Update Beat Indicator")
 
-	def OnIdle(self):
+	#def OnIdle(self):
 
-		self.dirtyRefreshMacros()
+		#self.dirtyRefreshMacros()
 
 	def scaleValue(self, value, scaleIn, scaleOut):
 		return ((value/scaleIn) * scaleOut)
 
 	def dirtyRefreshMacros(self):
-		for controlId in range(8):
-			eventID = device.findEventID(midi.EncodeRemoteControlID(device.getPortNumber(), 0, 0) + controlId, 1)
-			sVal = self.scaleValue(device.getLinkedValue(eventID), 1, 127)
-			#print("CID: ", controlId, "val: ", sVal)
-			self.UpdateKnobs(controlId, sVal)
+
+		print("On Dirty Refresh Macros")
 
 	class KNOB:
 		 PAN = 11
@@ -247,8 +249,8 @@ def OnMidiMsg(event):
 def OnControlChange(event):
 	MidiFighterTwister.OnControlChange(event)
 
-def OnIdle():
-	MidiFighterTwister.OnIdle()
+#def OnIdle():
+#	MidiFighterTwister.OnIdle()
 
 def OnMidiOutMsg(event):
 	MidiFighterTwister.OnMidiOutMsg(event)
